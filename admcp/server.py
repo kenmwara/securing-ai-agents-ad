@@ -88,6 +88,24 @@ def ad_unlock_account(user: str) -> dict:
     return run_script("ad_unlock_account", args, CALLER)
 
 
+_SVC = re.compile(r"^svc-[a-z0-9-]{2,16}$")        # a service account name (D17)
+_DESC = re.compile(r"^[A-Za-z0-9 .,()/_-]{0,120}$")  # its description
+
+
+@server.tool(description=(
+    "Create one application service account in OU=_SERVICE, enabled, with a random password nobody sees. CHANGES "
+    "something. Needs Create User objects on OU=_SERVICE (plus Reset Password and write userAccountControl on users "
+    "there), delegated only on that OU; elsewhere AD refuses and its error is returned as is. 'name' is svc- plus 2-16 "
+    "lowercase letters, digits or hyphens; 'description' says what the account is for. Sets nothing else."))
+def ad_create_service_account(name: str, description: str = "") -> dict:
+    args = {"name": name, "description": description}
+    if not _SVC.match(name):
+        reject("ad_create_service_account", args, CALLER, "name must be svc- followed by 2-16 lowercase letters, digits or hyphens")
+    if not _DESC.match(description):
+        reject("ad_create_service_account", args, CALLER, "description has characters that are not allowed (max 120)")
+    return run_script("ad_create_service_account", args, CALLER)
+
+
 @server.tool(description=(
     "Add one user to one group. CHANGES something. Needs write member on the group, delegated only on groups in "
     "OU=Groups; elsewhere AD refuses and its error is returned as is. 'group' is the group name, 'user' the "

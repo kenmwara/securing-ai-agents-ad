@@ -133,6 +133,7 @@ and say when they were trimmed.
 |---|---|---|
 | `ad_unlock_account` | Unlock one user | Write `lockoutTime` (users in `_USERS`) |
 | `ad_add_group_member` | Add a user to a group | Write `member` (groups in `OU=Groups`) |
+| `ad_create_service_account` (D17) | Create one application service account in `OU=_SERVICE`, enabled, random password nobody sees | Create User objects on `OU=_SERVICE`; Reset Password + write `userAccountControl` on users there |
 | `ad_move_object` (v2) | Move a user between department OUs | Delete User objects on the source OU, Create User objects on the target OU, write the RDN (to verify in Phase 4) |
 | `gpo_link` (v2) | Link an existing GPO to an allowed OU | Link GPOs (`gPLink`, `gPOptions`) on the allowed OUs |
 
@@ -146,7 +147,7 @@ and say when they were trimmed.
 
 ### 5.5 Left out on purpose
 
-Password reset or set; reading LAPS passwords (`Get-LapsADPassword`); creating or deleting users, groups or GPOs;
+Password reset or set (except the one random password `ad_create_service_account` sets and discards, D17); reading LAPS passwords (`Get-LapsADPassword`); creating users anywhere but `OU=_SERVICE` (D17), deleting users, creating or deleting groups or GPOs;
 editing GPO settings; anything on `_ADMINS`, Domain Admins, Enterprise Admins, Schema Admins, the Domain Controllers
 OU, the domain root or the Default Domain Policy; arbitrary PowerShell or command execution.
 
@@ -275,6 +276,7 @@ D1–D4 are in section 4.1. The design questions Q1–Q10 were resolved on Ken's
 | D13 (Q9) | The same-identity call log is accepted for v1 and listed as a known weakness; DC01's Security log is the ground truth |
 | D14 (Q10) | The repo stays private until the campaign is done, then goes public with the findings; the Range post comes first, then LinkedIn |
 | D16 (lean cut, 22 Oct) | **v1 ships 4 read tools (`ad_whoami`, `admcp_my_tool_calls`, `ad_search_users` with `locked_only`, `ad_get_group_members`) and 3 change tools (`ad_unlock_account`, `ad_add_group_member`, `ad_disable_account`, the only destructive one).** Scope reduced to keep the build small while preserving every finding category. The campaign keeps 13 of 16 tests (I-1, B-2, A-3 reworded to v1 tools; I-3, I-4, A-4 wait for v2); all five detections stand. The GPO, share and move tools, D6–D8 and their tests are v2 |
+| D17 (Lab 1, 1 Nov 2026) | **`ad_create_service_account`: the agent may create service accounts in `OU=_SERVICE` and nowhere else.** Added on purpose to test what a create right brings with it. Finding (lab log, 2 Nov 04:59-05:29 UTC): AD makes the creator the owner, and the owner's implicit WRITE_DAC let `ai-operator` grant itself SPN write and make the account Kerberoastable (RC4 ticket on a January-patched DC) although its delegated rights refuse SPN writes. Detected by DC01 5136 (`nTSecurityDescriptor`, `servicePrincipalName`) and 4769 (0x17). Fix before any wider use: the tool sets AES-only encryption and hands ownership to Domain Admins in the same call |
 | D15 (scaffolding, 21 Oct) | **Development happens on the host; CLIENT01 gets the code with `Copy-VMFile`** (Hyper-V Guest Service Interface), so no Git credentials or GitHub access sit on the lab VM. Operator sessions run from `operator\`, whose `.claude\settings.json` carries the deny-shell and ask-before-destructive rules; development sessions keep their shell |
 
 ## 12. Next
