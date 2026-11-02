@@ -40,6 +40,21 @@ if ($Part -eq "Service") {
         ([Security.AccessControl.AuditFlags]"Success"), ([DirectoryServices.ActiveDirectorySecurityInheritance]"All")))
     Set-Acl "AD:$svc" $acl
     Write-Output "audit SACL on ${svc}: Everyone, success, create child + write property + write DACL + write owner"
+    # Lab 1 fix (2 Nov 2026): the creator of an object is its owner, and an owner may rewrite the object's permissions
+    # (implicit WRITE_DAC), so ai-operator could grant itself the SPN write its delegation refuses. An OWNER RIGHTS
+    # (S-1-3-4) entry replaces the owner's implicit rights with what it lists: read permissions only. Inherited by every
+    # user in _SERVICE, including accounts created before the fix.
+    $acl = Get-Acl "AD:$svc"
+    $ownerRights = New-Object Security.Principal.SecurityIdentifier "S-1-3-4"
+    $userClass = [guid]"bf967aba-0de6-11d0-a285-00aa003049e2"
+    $has = $acl.Access | Where-Object { $_.IdentityReference -match "OWNER RIGHTS" -and $_.InheritedObjectType -eq $userClass }
+    if (-not $has) {
+        $acl.AddAccessRule((New-Object DirectoryServices.ActiveDirectoryAccessRule $ownerRights,
+            ([DirectoryServices.ActiveDirectoryRights]"ReadControl"), ([Security.AccessControl.AccessControlType]"Allow"),
+            ([DirectoryServices.ActiveDirectorySecurityInheritance]"Descendents"), $userClass))
+        Set-Acl "AD:$svc" $acl
+    }
+    Write-Output "OWNER RIGHTS on ${svc}: read permissions only, inherited by user objects (owner can no longer rewrite them)"
     return
 }
 # Groups is found by name, as phase0-dc01.ps1 does: it is not guaranteed to sit at the domain root

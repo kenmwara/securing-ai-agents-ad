@@ -1,8 +1,12 @@
 # ad_create_service_account: create one application service account in OU=_SERVICE. CHANGES something (D17, Lab 1).
 # Needs Create User objects on OU=_SERVICE plus Reset Password and write userAccountControl on users there, delegated to
 # AI-Operators by lab/setup-lab.ps1. The password is random, set here and thrown away: the agent never sees, returns or
-# logs it (credential-free, D2). Nothing beyond name, description and the password is set, so the account carries the
-# domain's defaults; Lab 1 measures what those defaults are. JSON in on stdin ({"name": "svc-...", "description": "..."}).
+# logs it (credential-free, D2). Nothing else is set: Kerberos encryption comes from the DC's default, AES-only since the
+# Lab 1 fix (DefaultDomainSupportedEncTypes 0x18). Setting msDS-SupportedEncryptionTypes here was tried and dropped: the
+# agent has no write right on that attribute, New-ADUser fails partway and leaves a disabled half-made account, and
+# granting the right would also let the agent set RC4 back. The OWNER RIGHTS entry on OU=_SERVICE (lab/setup-lab.ps1
+# -Part Service) stops the agent, as creator and owner, from rewriting the account's permissions.
+# JSON in on stdin ({"name": "svc-...", "description": "..."}).
 $ErrorActionPreference = 'Stop'
 try {
     $a = [Console]::In.ReadToEnd() | ConvertFrom-Json
